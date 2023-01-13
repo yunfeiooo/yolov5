@@ -461,6 +461,8 @@ class LoadImagesAndLabels(Dataset):
         self.path = path
         self.albumentations = Albumentations(size=img_size) if augment else None
 
+        my_im_files = []
+        my_label_files = []
         try:
             f = []  # image files
             for p in path if isinstance(path, list) else [path]:
@@ -469,21 +471,38 @@ class LoadImagesAndLabels(Dataset):
                     f += glob.glob(str(p / '**' / '*.*'), recursive=True)
                     # f = list(p.rglob('*.*'))  # pathlib
                 elif p.is_file():  # file
-                    with open(p) as t:
-                        t = t.read().strip().splitlines()
-                        parent = str(p.parent) + os.sep
-                        f += [x.replace('./', parent, 1) if x.startswith('./') else x for x in t]  # to global path
-                        # f += [p.parent / x.lstrip(os.sep) for x in t]  # to global path (pathlib)
+                    if "filelist" in str(p): # 自己的文件格式，"path/to/img\tpath/to/label"
+                        with open(p) as t:
+                            t = t.read().strip().splitlines()
+                            parent = str(p.parent) + os.sep
+                            t = [x.replace('./', parent, 1) if x.startswith('./') else x for x in t]  # to global path
+                            t = [x.split("\t") for x in t]
+                            for x, y in t:
+                                if x.split('.')[-1].lower() in IMG_FORMATS:
+                                    x = x.replace('/', os.sep)
+                                    my_im_files.append(x)
+                                    my_label_files.append(y)
+
+                    else:
+                        with open(p) as t:
+                            t = t.read().strip().splitlines()
+                            parent = str(p.parent) + os.sep
+                            f += [x.replace('./', parent, 1) if x.startswith('./') else x for x in t]  # to global path
+                            # f += [p.parent / x.lstrip(os.sep) for x in t]  # to global path (pathlib)
                 else:
                     raise FileNotFoundError(f'{prefix}{p} does not exist')
             self.im_files = sorted(x.replace('/', os.sep) for x in f if x.split('.')[-1].lower() in IMG_FORMATS)
             # self.img_files = sorted([x for x in f if x.suffix[1:].lower() in IMG_FORMATS])  # pathlib
-            assert self.im_files, f'{prefix}No images found'
+            assert self.im_files or my_im_files, f'{prefix}No images found'
         except Exception as e:
             raise Exception(f'{prefix}Error loading data from {path}: {e}\n{HELP_URL}') from e
 
         # Check cache
         self.label_files = img2label_paths(self.im_files)  # labels
+
+        self.label_files = self.label_files + my_label_files
+        self.im_files = self.im_files + my_im_files
+
         cache_path = (p if p.is_file() else Path(self.label_files[0]).parent).with_suffix('.cache')
         try:
             cache, exists = np.load(cache_path, allow_pickle=True).item(), True  # load dict
