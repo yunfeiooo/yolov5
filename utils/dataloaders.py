@@ -475,7 +475,7 @@ class LoadImagesAndLabels(Dataset):
                         with open(p) as t:
                             t = t.read().strip().splitlines()
                             parent = str(p.parent) + os.sep
-                            t = [x.replace('./', parent, 1) if x.startswith('./') else x for x in t]  # to global path
+                            t = [x.replace('./', parent, 2) if x.startswith('./') else x for x in t]  # to global path
                             t = [x.split("\t") for x in t]
                             for x, y in t:
                                 if x.split('.')[-1].lower() in IMG_FORMATS:
